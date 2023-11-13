@@ -1,0 +1,8 @@
+[project]
+name = "CoolThing"
+version = "0.1"
+
+[build]
+source = ["src/main.c"]
+include = ["include"]
+compiler = "gcc"
