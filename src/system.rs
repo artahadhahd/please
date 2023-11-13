@@ -1,6 +1,7 @@
 use crate::parse::BuildConfiguration;
 use anyhow::{Ok, Result};
 use std::{path::Path, process::Command};
+use colored::Colorize;
 
 pub struct BuildSystem {
     pub path: String,
@@ -31,7 +32,7 @@ impl BuildSystem {
         // let authors = self.build_file.project.authors.clone();
         let b = std::fs::canonicalize(&self.path)?;
         let path = b.to_str().unwrap_or("");
-        println!("  Compiling {} v{} ({})", name, version, path);
+        println!("   {} {} v{} ({})", "Compiling".green().bold(), name, version, path);
         let compiler = &self.build_file.build.compiler;
         let sources = self
             .build_file
