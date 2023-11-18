@@ -1,8 +1,13 @@
 [project]
 name = "CoolThing"
 version = "0.1"
+type = "app"
 
 [build]
 source = ["src/main.c"]
 include = ["include"]
 compiler = "gcc"
+objects = true
+
+[dependencies.static]
+libstrange = "https://github.com/artahadhahd/libstrange"
