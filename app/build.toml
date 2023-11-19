@@ -1,0 +1,7 @@
+[project]
+name = "app"
+version = "0.1"
+type = "app"
+
+[build]
+source = ["src/app.cpp"]
