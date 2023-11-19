@@ -1,0 +1,11 @@
+[project]
+version = "0.1"
+name = "something"
+type = "app"
+
+[build]
+sources = ["src/*.c"]
+
+[out]
+dir = "."
+name = "strange.o"
