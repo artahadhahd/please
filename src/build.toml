@@ -4,7 +4,8 @@ name = "something"
 type = "app"
 
 [build]
-sources = ["src/*.c"]
+compiler = "gcc"
+sources = ["main.c", "build.c"]
 
 [out]
 dir = "."

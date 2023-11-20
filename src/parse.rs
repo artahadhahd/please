@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_variables)]
+use std::path::PathBuf;
+
 use crate::cli::Command;
-use anyhow::Result;
+use anyhow::{Result, Ok};
 use serde::Deserialize;
 
 #[allow(non_camel_case_types)]
@@ -55,9 +57,11 @@ struct DummyRoot {
 
 #[derive(Deserialize, Debug, Default)]
 pub struct Build {
+    pub compiler: String,
     pub sources: Vec<String>,
     pub includes: Option<Vec<String>>,
     pub warnings: Option<u8>,
+    pub object: Option<bool>,
 }
 
 pub enum Redirect {
@@ -72,14 +76,43 @@ pub struct AppRoot {
 }
 
 impl AppRoot {
-    pub fn run(&self, command: &Command) {
+    pub fn run(&self, command: &Command) -> Result<()> {
         match command {
-            Command::build => self.build_project(),
+            Command::build => self.build_project()?,
             _ => todo!(),
         }
+        Ok(())
     }
 
-    fn build_project(&self) {}
+
+    fn build_project(&self) -> Result<()> {
+        let build_sources = &self.build.sources;
+        if self.build.object.unwrap_or(false) {
+            self.compilation_stage(build_sources)?;
+            linking_stage(build_sources);
+        } else {
+
+        }
+        Ok(())
+    }
+
+    fn compilation_stage(&self, sources: &Vec<String>) -> Result<()> {
+        for file in sources.iter() {
+            let mut compiler = std::process::Command::new(&self.build.compiler);
+            let mut output = PathBuf::from(file);
+            output.set_extension("o");
+            dbg!(&output);
+            compiler.arg("-c").arg(file).arg("-o").arg(output);
+            compiler.spawn()?;
+        }
+        dbg!(sources);
+        Ok(())
+    }
+}
+
+
+fn linking_stage(sources: &Vec<String>) {
+
 }
 
 #[derive(Deserialize, Debug)]
@@ -103,14 +136,15 @@ impl Redirect {
         })
     }
 
-    pub fn run(&self, cmd: &Option<Command>) {
+    pub fn run(&self, cmd: &Option<Command>) -> Result<()> {
         let cmd: Command = match cmd {
             None => Command::run,
             Some(command) => command.to_owned(),
         };
         match self {
-            Self::App(app) => app.run(&cmd),
+            Self::App(app) => app.run(&cmd)?,
             Self::Lib(lib) => lib.run(&cmd),
         }
+        Ok(())
     }
 }
