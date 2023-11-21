@@ -1,8 +1,10 @@
 #![allow(dead_code, unused_variables)]
-use std::path::PathBuf;
+use std::{fmt::Debug, path::PathBuf};
+use colored::Colorize;
+
 
 use crate::cli::Command;
-use anyhow::{Result, Ok};
+use anyhow::{Ok, Result};
 use serde::Deserialize;
 
 #[allow(non_camel_case_types)]
@@ -61,7 +63,7 @@ pub struct Build {
     pub sources: Vec<String>,
     pub includes: Option<Vec<String>>,
     pub warnings: Option<u8>,
-    pub object: Option<bool>,
+    pub objects: Option<bool>,
 }
 
 pub enum Redirect {
@@ -75,6 +77,19 @@ pub struct AppRoot {
     pub build: Build,
 }
 
+use std::fmt;
+
+#[derive(Debug, Clone)]
+pub struct CompilationError {}
+
+impl fmt::Display for CompilationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt("Failed to compile", f)
+    }
+}
+
+impl std::error::Error for CompilationError {}
+
 impl AppRoot {
     pub fn run(&self, command: &Command) -> Result<()> {
         match command {
@@ -84,16 +99,32 @@ impl AppRoot {
         Ok(())
     }
 
-
     fn build_project(&self) -> Result<()> {
         let build_sources = &self.build.sources;
-        if self.build.object.unwrap_or(false) {
+        if self.build.objects.unwrap_or(false) {
             self.compilation_stage(build_sources)?;
             linking_stage(build_sources);
         } else {
-
         }
         Ok(())
+    }
+
+    fn get_warnings<'a>(&self) -> Vec<String> {
+        if self.build.warnings.is_none() {
+            return Vec::from(["".into()]);
+        }
+        match self.build.warnings.unwrap() {
+            0 => Vec::from(["".into()]),
+            1 => Vec::from(["-Wall".into()]),
+            2 => Vec::from(["-Wall".into(), "-Wextra".into()]),
+            3 => Vec::from(["-Wall".into(), "-Wextra".into(), "-Wpedantic".into()]),
+            _ => Vec::from([
+                "-Wall".into(),
+                "-Wextra".into(),
+                "-Wpedantic".into(),
+                "-Werror".into(),
+            ]),
+        }
     }
 
     fn compilation_stage(&self, sources: &Vec<String>) -> Result<()> {
@@ -101,19 +132,23 @@ impl AppRoot {
             let mut compiler = std::process::Command::new(&self.build.compiler);
             let mut output = PathBuf::from(file);
             output.set_extension("o");
-            dbg!(&output);
-            compiler.arg("-c").arg(file).arg("-o").arg(output);
+            compiler
+                .arg("-c")
+                .arg(file)
+                .arg("-o")
+                .arg(output)
+                .args(&self.get_warnings());
             compiler.spawn()?;
+            let status = compiler.status()?;
+            if !status.success() {
+                eprintln!("{}: {}", &self.project.name.cyan().underline().bold() ,"Failed to compile".red().bold());
+            }
         }
-        dbg!(sources);
         Ok(())
     }
 }
 
-
-fn linking_stage(sources: &Vec<String>) {
-
-}
+fn linking_stage(sources: &Vec<String>) {}
 
 #[derive(Deserialize, Debug)]
 pub struct LibRoot {

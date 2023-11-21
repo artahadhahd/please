@@ -6,6 +6,8 @@ type = "app"
 [build]
 compiler = "gcc"
 sources = ["main.c", "build.c"]
+objects = true
+warnings = 4
 
 [out]
 dir = "."

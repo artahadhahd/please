@@ -1,12 +1,12 @@
 mod cli;
-mod parse;
 mod gen;
+mod parse;
 
 use anyhow::Result;
 use clap::Parser;
 use cli::Cli;
-use parse::Redirect;
 use gen::create_new;
+use parse::Redirect;
 
 fn main() -> Result<()> {
     let cmds = Cli::parse();
