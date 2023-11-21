@@ -107,6 +107,10 @@ impl AppRoot {
     pub fn run(&self, command: &Command) -> Result<()> {
         match command {
             Command::build => self.build_project()?,
+            Command::run => {
+                self.build_project()?;
+                std::process::Command::new(&format!("./{}", self.get_output_name())).status()?;
+            }
             _ => todo!(),
         }
         Ok(())
@@ -114,12 +118,11 @@ impl AppRoot {
 
     fn build_project(&self) -> Result<()> {
         let build_sources = &self.build.sources;
-        // let build_sources: Vec<String> = build_sources.iter().map(|f| canonicalize(f).expect("Couldn't parse source files").to_str().expect("Couldn't parse source file").to_string()).collect();
-        // dbg!(&build_sources);
         if self.build.objects.unwrap_or(false) {
             let objects = self.compilation_stage(&build_sources)?;
             self.link_from(&objects)?;
         } else {
+            self.link_from(build_sources)?;
         }
         Ok(())
     }
@@ -133,7 +136,6 @@ impl AppRoot {
         for source in sources.iter() {
             compiler.arg(source);
         }
-        // compiler.arg(arg);
         compiler.arg("-o").arg(&self.get_output_name());
         let status = compiler.status()?;
         if !status.success() {
@@ -201,8 +203,6 @@ impl AppRoot {
         Ok(out)
     }
 }
-
-// fn linking_stage(_sources: &Vec<String>) {}
 
 #[derive(Deserialize, Debug)]
 pub struct LibRoot {
