@@ -14,7 +14,8 @@ fn main() -> Result<()> {
         create_new(cmds)?;
         return Ok(());
     }
-    let project = Redirect::parse(include_str!("build.toml").into())?;
+    let build_file = std::fs::read_to_string("build.toml")?;
+    let project = Redirect::parse(build_file)?;
     project.run(&cmds.initial)?;
     Ok(())
 }
