@@ -77,7 +77,6 @@ struct DummyRoot {
 
 #[derive(Deserialize, Debug)]
 pub struct Dependencies {
-    // remote: Option<HashMap<String, String>>
     pub local: Option<HashMap<String, String>>,
 }
 
