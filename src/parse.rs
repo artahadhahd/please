@@ -1,11 +1,10 @@
-#![allow(dead_code, unused_variables)]
-use std::{fmt::Debug, path::PathBuf};
-use colored::Colorize;
-
+use std::{fmt::Debug, path::PathBuf, fs::canonicalize};
 
 use crate::cli::Command;
 use anyhow::{Ok, Result};
+use colored::Colorize;
 use serde::Deserialize;
+use std::process;
 
 #[allow(non_camel_case_types)]
 #[derive(Deserialize, Debug, Default)]
@@ -25,6 +24,24 @@ pub enum Languages {
     cc,
     #[serde(rename = "c++")]
     Cpp,
+}
+
+#[derive(Debug)]
+pub enum CompilationError {
+    Compiling(String),
+    Linking(String),
+}
+
+use std::fmt;
+impl std::error::Error for CompilationError {}
+impl std::fmt::Display for CompilationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use CompilationError::*;
+        match self {
+            Compiling(name) => write!(f, "{} '{name}'", "Failed to compile".bold().red()),
+            Linking(name) => write!(f, "{} {name}", "Failed to link".bold().red()),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -64,6 +81,7 @@ pub struct Build {
     pub includes: Option<Vec<String>>,
     pub warnings: Option<u8>,
     pub objects: Option<bool>,
+    pub bin: Option<String>, // The name of the output
 }
 
 pub enum Redirect {
@@ -77,19 +95,6 @@ pub struct AppRoot {
     pub build: Build,
 }
 
-use std::fmt;
-
-#[derive(Debug, Clone)]
-pub struct CompilationError {}
-
-impl fmt::Display for CompilationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Debug::fmt("Failed to compile", f)
-    }
-}
-
-impl std::error::Error for CompilationError {}
-
 impl AppRoot {
     pub fn run(&self, command: &Command) -> Result<()> {
         match command {
@@ -101,54 +106,77 @@ impl AppRoot {
 
     fn build_project(&self) -> Result<()> {
         let build_sources = &self.build.sources;
+        // let build_sources: Vec<String> = build_sources.iter().map(|f| canonicalize(f).expect("Couldn't parse source files").to_str().expect("Couldn't parse source file").to_string()).collect();
+        // dbg!(&build_sources);
         if self.build.objects.unwrap_or(false) {
-            self.compilation_stage(build_sources)?;
-            linking_stage(build_sources);
+            let objects = self.compilation_stage(&build_sources)?;
+            self.link_from(&objects)?;
         } else {
         }
         Ok(())
     }
 
-    fn get_warnings<'a>(&self) -> Vec<String> {
-        if self.build.warnings.is_none() {
-            return Vec::from(["".into()]);
+    fn get_output_name(&self) -> String {
+        self.build.bin.clone().unwrap_or(self.project.name.clone())
+    }
+
+    fn link_from(&self, sources: &Vec<String>) -> Result<()> {
+        let mut compiler = process::Command::new(&self.build.compiler);
+        for source in sources.iter() {
+            compiler.arg(source);
         }
-        match self.build.warnings.unwrap() {
-            0 => Vec::from(["".into()]),
-            1 => Vec::from(["-Wall".into()]),
-            2 => Vec::from(["-Wall".into(), "-Wextra".into()]),
-            3 => Vec::from(["-Wall".into(), "-Wextra".into(), "-Wpedantic".into()]),
-            _ => Vec::from([
+        compiler.arg("-o").arg(&self.get_output_name());
+        let status = compiler.status()?;
+        if !status.success() {
+            return  Err(CompilationError::Linking(self.project.name.to_owned()).into());
+        }
+        Ok(())
+    }
+
+    // TODO: this design is fucking terrible, what if user wants pedantic and all?
+    // TODO: MSVC compiler flag support?
+    fn get_warnings<'a>(&self) -> Option<Vec<String>> {
+        match self.build.warnings.unwrap_or(0u8) {
+            0 => None,
+            1 => Some(Vec::from(["-Wall".into()])),
+            2 => Some(Vec::from(["-Wall".into(), "-Wextra".into()])),
+            3 => Some(Vec::from([
+                "-Wall".into(),
+                "-Wextra".into(),
+                "-Wpedantic".into(),
+            ])),
+            _ => Some(Vec::from([
                 "-Wall".into(),
                 "-Wextra".into(),
                 "-Wpedantic".into(),
                 "-Werror".into(),
-            ]),
+            ])),
         }
     }
 
-    fn compilation_stage(&self, sources: &Vec<String>) -> Result<()> {
+    fn compilation_stage(&self, sources: &Vec<String>) -> Result<Vec<String>> {
+        let mut out: Vec<String> = vec![];
         for file in sources.iter() {
             let mut compiler = std::process::Command::new(&self.build.compiler);
-            let mut output = PathBuf::from(file);
+            let mut output = canonicalize(PathBuf::from(file))?;
             output.set_extension("o");
-            compiler
-                .arg("-c")
-                .arg(file)
-                .arg("-o")
-                .arg(output)
-                .args(&self.get_warnings());
-            compiler.spawn()?;
+            out.push(output.to_str().unwrap().to_string());
+            compiler.arg("-c").arg(file).arg("-o").arg(output);
+            let warnings = self.get_warnings();
+            if warnings.is_some() {
+                compiler.args(&warnings.unwrap());
+            }
             let status = compiler.status()?;
-            if !status.success() {
-                eprintln!("{}: {}", &self.project.name.cyan().underline().bold() ,"Failed to compile".red().bold());
+            let status = status.success();
+            if !status {
+                return Err(CompilationError::Compiling(self.project.name.to_owned()).into());
             }
         }
-        Ok(())
+        Ok(out)
     }
 }
 
-fn linking_stage(sources: &Vec<String>) {}
+// fn linking_stage(_sources: &Vec<String>) {}
 
 #[derive(Deserialize, Debug)]
 pub struct LibRoot {
@@ -158,7 +186,7 @@ pub struct LibRoot {
 }
 
 impl LibRoot {
-    pub fn run(&self, cmd: &Command) {}
+    pub fn run(&self, _cmd: &Command) {}
 }
 
 // I don't know what to call this?

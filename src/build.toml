@@ -7,7 +7,7 @@ type = "app"
 compiler = "gcc"
 sources = ["main.c", "build.c"]
 objects = true
-warnings = 4
+warnings = 0
 
 [out]
 dir = "."
