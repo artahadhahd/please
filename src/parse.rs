@@ -1,4 +1,5 @@
-use std::{fmt::Debug, path::PathBuf, fs::canonicalize};
+use std::collections::HashMap;
+use std::{fmt::Debug, fs::canonicalize, path::PathBuf};
 
 use crate::cli::Command;
 use anyhow::{Ok, Result};
@@ -74,6 +75,12 @@ struct DummyRoot {
     project: Project,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct Dependencies {
+    // remote: Option<HashMap<String, String>>
+    pub local: Option<HashMap<String, String>>,
+}
+
 #[derive(Deserialize, Debug, Default)]
 pub struct Build {
     pub compiler: String,
@@ -93,6 +100,7 @@ pub enum Redirect {
 pub struct AppRoot {
     pub project: Project,
     pub build: Build,
+    pub dependencies: Option<Dependencies>,
 }
 
 impl AppRoot {
@@ -125,17 +133,31 @@ impl AppRoot {
         for source in sources.iter() {
             compiler.arg(source);
         }
+        // compiler.arg(arg);
         compiler.arg("-o").arg(&self.get_output_name());
         let status = compiler.status()?;
         if !status.success() {
-            return  Err(CompilationError::Linking(self.project.name.to_owned()).into());
+            return Err(CompilationError::Linking(self.project.name.to_owned()).into());
         }
         Ok(())
     }
 
+    /* returns a vec with format -I, <include>  */
+    fn get_includes(&self) -> Option<Vec<String>> {
+        let mut out: Vec<String> = vec![];
+        if self.build.includes.is_none() {
+            return None;
+        }
+        for include in self.build.includes.as_ref().unwrap() {
+            out.push("-I".into());
+            out.push(include.clone());
+        }
+        Some(out)
+    }
+
     // TODO: this design is fucking terrible, what if user wants pedantic and all?
     // TODO: MSVC compiler flag support?
-    fn get_warnings<'a>(&self) -> Option<Vec<String>> {
+    fn get_warnings(&self) -> Option<Vec<String>> {
         match self.build.warnings.unwrap_or(0u8) {
             0 => None,
             1 => Some(Vec::from(["-Wall".into()])),
@@ -165,6 +187,10 @@ impl AppRoot {
             let warnings = self.get_warnings();
             if warnings.is_some() {
                 compiler.args(&warnings.unwrap());
+            }
+            let includes = self.get_includes();
+            if includes.is_some() {
+                compiler.args(&includes.unwrap());
             }
             let status = compiler.status()?;
             let status = status.success();

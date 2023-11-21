@@ -34,8 +34,10 @@ version = "0.1"
 type = "app"
 
 [build]
-# compiler = 
-sources = ["src/{name}.{extension}"]"#
+# compiler = MANDATORY
+sources = ["src/{name}.{extension}"]
+includes = []
+"#
             )
             .as_bytes(),
         )?;
