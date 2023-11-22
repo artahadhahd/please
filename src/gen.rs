@@ -15,7 +15,7 @@ pub fn create_new(cli: Cli) -> Result<()> {
             "cpp" => include_bytes!("templates/cpp"),
             _ => include_bytes!("templates/c"),
         })?;
-        let build_file = project_root.join("build.toml");
+        let build_file = project_root.join("Build.toml");
         let mut build_file = std::fs::File::create(build_file)?;
         build_file.write_all(
             format!(

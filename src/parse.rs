@@ -202,15 +202,14 @@ impl AppRoot {
 
     fn compilation_stage(&self, sources: &Vec<String>) -> Result<Vec<String>> {
         let mut out: Vec<String> = vec![];
-        // self.get_last_modified(sources)?;
         for file in sources.iter() {
             let mut compiler = std::process::Command::new(&self.build.compiler);
             let mut output = canonicalize(PathBuf::from(file))?;
             let input = output.clone();
             output.set_extension("o");
             let needs_to_be_compiled = self.has_been_modified(
-                &input.to_str().expect("mia").to_string(),
-                &output.to_str().expect("ma").to_string(),
+                &input.to_str().unwrap_or("").to_string(),
+                &output.to_str().unwrap_or("").to_string(),
             )?;
             out.push(output.to_str().unwrap().to_string());
             compiler.arg("-c").arg(file).arg("-o").arg(output);
