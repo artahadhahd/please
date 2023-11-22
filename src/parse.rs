@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use std::{fmt::Debug, fs::canonicalize, path::PathBuf};
 
 use crate::cli::Command;
 use anyhow::{Ok, Result};
 use colored::Colorize;
 use serde::Deserialize;
-use std::process;
+use std::{process, fs};
 
 #[allow(non_camel_case_types)]
 #[derive(Deserialize, Debug, Default)]
@@ -45,17 +45,6 @@ impl std::fmt::Display for CompilationError {
     }
 }
 
-#[allow(dead_code)]
-impl Languages {
-    pub fn to_extension(&self) -> String {
-        match self {
-            Self::c => "c",
-            Self::cpp | Self::cxx | Self::Cpp | Self::cc => "cpp",
-        }
-        .into()
-    }
-}
-
 #[derive(Deserialize, Debug)]
 pub struct Output {
     pub dir: String,
@@ -77,7 +66,7 @@ struct DummyRoot {
 
 #[derive(Deserialize, Debug)]
 pub struct Dependencies {
-    pub local: Option<HashMap<String, String>>,
+    pub local: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Debug, Default)]
@@ -106,16 +95,17 @@ impl AppRoot {
     pub fn run(&self, command: &Command) -> Result<()> {
         match command {
             Command::build => self.build_project()?,
-            Command::run => {
-                self.build_project()?;
-                std::process::Command::new(&format!("./{}", self.get_output_name())).status()?;
-            }
+            // Command::run => {
+            //     self.build_project()?;
+            //     std::process::Command::new(&format!("./{}", self.get_output_name())).status()?;
+            // },
             _ => todo!(),
         }
         Ok(())
     }
 
     fn build_project(&self) -> Result<()> {
+        println!("{} {} v{}", "  Building".green().bold(), &self.project.name, &self.project.version);
         let build_sources = &self.build.sources;
         if self.build.objects.unwrap_or(false) {
             let objects = self.compilation_stage(&build_sources)?;
@@ -182,6 +172,8 @@ impl AppRoot {
         for file in sources.iter() {
             let mut compiler = std::process::Command::new(&self.build.compiler);
             let mut output = canonicalize(PathBuf::from(file))?;
+            let _metadata = fs::metadata(&output)?;
+            // dbg!(metadata);
             output.set_extension("o");
             out.push(output.to_str().unwrap().to_string());
             compiler.arg("-c").arg(file).arg("-o").arg(output);

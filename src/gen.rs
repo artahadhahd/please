@@ -8,15 +8,7 @@ pub fn create_new(cli: Cli) -> Result<()> {
         let project_root = std::fs::canonicalize(&name)?;
         let source_directory = project_root.join("src");
         std::fs::create_dir(&source_directory)?;
-        let extension = if let Some(lang) = cli.language {
-            // fuck this
-            match lang {
-                Lang::c => "c",
-                Lang::cpp => "cpp",
-            }
-        } else {
-            "c"
-        };
+        let extension = cli.language.unwrap_or(Lang::c).to_extension();
         let main = source_directory.join(&format!("{name}.{extension}"));
         let mut file = std::fs::File::create(main)?;
         file.write_all(match extension {

@@ -16,6 +16,15 @@ pub enum Lang {
     cpp,
 }
 
+impl Lang {
+    pub fn to_extension<'a>(&self) -> &'a str {
+        match self {
+            Self::c => "c",
+            Self::cpp => "cpp",
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 pub struct Cli {
     pub initial: Option<Command>,
