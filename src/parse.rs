@@ -32,6 +32,8 @@ pub enum Languages {
 pub enum CompilationError {
     Compiling(String),
     Linking(String),
+    #[allow(dead_code)]
+    Dependency(String),
 }
 
 impl std::error::Error for CompilationError {}
@@ -41,6 +43,7 @@ impl std::fmt::Display for CompilationError {
         match self {
             Compiling(name) => write!(f, "{} '{name}'", "Failed to compile".bold().red()),
             Linking(name) => write!(f, "{} {name}", "Failed to link".bold().red()),
+            Dependency(dep) => write!(f, "{}: {dep}", "Dependency not found".bold().red()),
         }
     }
 }
@@ -98,10 +101,6 @@ impl AppRoot {
     pub fn run(&self, command: &Command) -> Result<()> {
         match command {
             Command::build => self.build_project()?,
-            // Command::run => {
-            //     self.build_project()?;
-            //     std::process::Command::new(&format!("./{}", self.get_output_name())).status()?;
-            // },
             _ => todo!(),
         }
         Ok(())
@@ -194,8 +193,8 @@ impl AppRoot {
         }
     }
 
-    fn has_been_modified(&self, source: &String, object: &String) -> Result<bool> {
-        let source_meta = fs::metadata(&source)?;
+    fn has_been_modified(&self, source: &PathBuf, object: &PathBuf) -> Result<bool> {
+        let source_meta = fs::metadata(&source).expect("Joe mama");
         let object_meta = fs::metadata(&object)?;
         Ok(object_meta.modified()? < source_meta.modified()?)
     }
@@ -208,9 +207,9 @@ impl AppRoot {
             let input = output.clone();
             output.set_extension("o");
             let needs_to_be_compiled = self.has_been_modified(
-                &input.to_str().unwrap_or("").to_string(),
-                &output.to_str().unwrap_or("").to_string(),
-            )?;
+                &input,
+                &output,
+            ).unwrap_or(true);
             out.push(output.to_str().unwrap().to_string());
             compiler.arg("-c").arg(file).arg("-o").arg(output);
             let warnings = self.get_warnings();
