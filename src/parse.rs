@@ -1,4 +1,4 @@
-// use std::collections::HashMap;
+use std::collections::HashMap;
 use std::{fmt::Debug, fs::canonicalize, path::PathBuf};
 
 use crate::cli::Command;
@@ -64,8 +64,12 @@ struct DummyRoot {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+pub struct Remote(HashMap<String, String>);
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct Dependencies {
     pub local: Option<Vec<String>>,
+    pub remote: Option<Remote>,
 }
 
 #[derive(Deserialize, Debug, Default)]
@@ -138,7 +142,6 @@ impl AppRoot {
         if !status.success() {
             return Err(CompilationError::Linking(self.project.name.to_owned()).into());
         }
-        dbg!(compiler);
         Ok(())
     }
 
@@ -191,14 +194,24 @@ impl AppRoot {
         }
     }
 
+    fn has_been_modified(&self, source: &String, object: &String) -> Result<bool> {
+        let source_meta = fs::metadata(&source)?;
+        let object_meta = fs::metadata(&object)?;
+        Ok(object_meta.modified()? < source_meta.modified()?)
+    }
+
     fn compilation_stage(&self, sources: &Vec<String>) -> Result<Vec<String>> {
         let mut out: Vec<String> = vec![];
+        // self.get_last_modified(sources)?;
         for file in sources.iter() {
             let mut compiler = std::process::Command::new(&self.build.compiler);
             let mut output = canonicalize(PathBuf::from(file))?;
-            let _metadata = fs::metadata(&output)?;
-            // dbg!(metadata);
+            let input = output.clone();
             output.set_extension("o");
+            let needs_to_be_compiled = self.has_been_modified(
+                &input.to_str().expect("mia").to_string(),
+                &output.to_str().expect("ma").to_string(),
+            )?;
             out.push(output.to_str().unwrap().to_string());
             compiler.arg("-c").arg(file).arg("-o").arg(output);
             let warnings = self.get_warnings();
@@ -209,10 +222,12 @@ impl AppRoot {
             if includes.is_some() {
                 compiler.args(&includes.unwrap());
             }
-            let status = compiler.status()?;
-            let status = status.success();
-            if !status {
-                return Err(CompilationError::Compiling(self.project.name.to_owned()).into());
+            if needs_to_be_compiled {
+                let status = compiler.status()?;
+                let status = status.success();
+                if !status {
+                    return Err(CompilationError::Compiling(self.project.name.to_owned()).into());
+                }
             }
         }
         Ok(out)
