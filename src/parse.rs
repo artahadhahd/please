@@ -5,7 +5,8 @@ use crate::cli::Command;
 use anyhow::{Ok, Result};
 use colored::Colorize;
 use serde::Deserialize;
-use std::{process, fs};
+use std::fmt;
+use std::{fs, process};
 
 #[allow(non_camel_case_types)]
 #[derive(Deserialize, Debug, Default)]
@@ -33,7 +34,6 @@ pub enum CompilationError {
     Linking(String),
 }
 
-use std::fmt;
 impl std::error::Error for CompilationError {}
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -56,7 +56,6 @@ pub struct Project {
     pub name: String,
     pub version: String,
     pub r#type: ProjectType,
-    // pub language: Option<Vec<Languages>>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -64,7 +63,7 @@ struct DummyRoot {
     project: Project,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Dependencies {
     pub local: Option<Vec<String>>,
 }
@@ -77,6 +76,7 @@ pub struct Build {
     pub warnings: Option<u8>,
     pub objects: Option<bool>,
     pub bin: Option<String>, // The name of the output
+    pub dependencies: Option<Dependencies>,
 }
 
 pub enum Redirect {
@@ -88,7 +88,6 @@ pub enum Redirect {
 pub struct AppRoot {
     pub project: Project,
     pub build: Build,
-    pub dependencies: Option<Dependencies>,
 }
 
 impl AppRoot {
@@ -105,7 +104,12 @@ impl AppRoot {
     }
 
     fn build_project(&self) -> Result<()> {
-        println!("{} {} v{}", "  Building".green().bold(), &self.project.name, &self.project.version);
+        println!(
+            "{} {} v{}",
+            "  Building".green().bold(),
+            &self.project.name,
+            &self.project.version
+        );
         let build_sources = &self.build.sources;
         if self.build.objects.unwrap_or(false) {
             let objects = self.compilation_stage(&build_sources)?;
@@ -125,12 +129,32 @@ impl AppRoot {
         for source in sources.iter() {
             compiler.arg(source);
         }
+        let platform_links = self.get_local_links();
+        if platform_links.is_some() {
+            compiler.args(&platform_links.unwrap());
+        }
         compiler.arg("-o").arg(&self.get_output_name());
         let status = compiler.status()?;
         if !status.success() {
             return Err(CompilationError::Linking(self.project.name.to_owned()).into());
         }
+        dbg!(compiler);
         Ok(())
+    }
+
+    fn get_local_links(&self) -> Option<Vec<String>> {
+        if self.build.dependencies.is_none() {
+            return None;
+        }
+        let deps = self.build.dependencies.clone().unwrap();
+        deps.local.clone().and_then(|deps| {
+            let mut out: Vec<String> = vec![];
+            for dep in deps {
+                out.push("-l".into());
+                out.push(dep);
+            }
+            Some(out)
+        })
     }
 
     /* returns a vec with format -I, <include>  */

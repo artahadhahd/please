@@ -1,5 +1,14 @@
 use clap::{Parser, ValueEnum};
 
+#[derive(Parser, Debug)]
+pub struct Cli {
+    pub initial: Option<Command>,
+    #[arg(long)]
+    pub new: Option<String>,
+    #[arg(short, long)]
+    pub language: Option<Lang>,
+}
+
 #[allow(non_camel_case_types)]
 #[derive(ValueEnum, Clone, Debug)]
 pub enum Command {
@@ -23,13 +32,4 @@ impl Lang {
             Self::cpp => "cpp",
         }
     }
-}
-
-#[derive(Parser, Debug)]
-pub struct Cli {
-    pub initial: Option<Command>,
-    #[arg(long)]
-    pub new: Option<String>,
-    #[arg(short, long)]
-    pub language: Option<Lang>,
 }
