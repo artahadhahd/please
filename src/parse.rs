@@ -90,6 +90,38 @@ pub struct Build {
     pub dependencies: Option<Dependencies>,
 }
 
+// TODO: make this work properly, it's really hacky rn and should work recursively.
+// NINE indentation layers... i definitely need to break this down into smaller functions!
+fn get_sources<'a>(sources: &Vec<String>) -> Result<Vec<String>> {
+    let mut out: Vec<String> = vec![];
+    for source in sources.iter() {
+        let source_path = fs::canonicalize(&source)?;
+        if source_path.is_file() {
+            out.push(source.clone());
+        }
+        if source_path.is_dir() {
+            let dir = fs::read_dir(&source_path)?;
+            for path in dir {
+                let file = path?;
+                let file = file.path();
+                if let Some(extension) = file.extension() {
+                    if let Some(extension) = extension.to_str() {
+                        match extension {
+                            "c" | "cpp" | "cxx" | "c++" | "cc" | "C" => {
+                                if let Some(f) = file.to_str() {
+                                    out.push(f.to_string())
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 pub enum Redirect {
     App(AppRoot),
     Lib(LibRoot),
@@ -117,12 +149,13 @@ impl AppRoot {
             &self.project.name,
             &self.project.version
         );
-        let build_sources = &self.build.sources;
+        let build_sources = get_sources(&self.build.sources)?;
         if self.build.objects.unwrap_or(false) {
             let objects = self.compilation_stage(&build_sources)?;
+            dbg!(&build_sources);
             self.link_from(&objects)?;
         } else {
-            self.link_from(build_sources)?;
+            self.link_from(&build_sources)?;
         }
         Ok(())
     }
