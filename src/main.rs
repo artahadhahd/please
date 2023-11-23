@@ -1,17 +1,22 @@
-mod app;
 mod cli;
+mod gen;
 mod parse;
-mod system;
+mod utils;
 
 use anyhow::Result;
-use app::App;
 use clap::Parser;
 use cli::Cli;
-use system::BuildSystem;
+use gen::create_new;
+use parse::Redirect;
 
 fn main() -> Result<()> {
-    let cli = Cli::parse().get_result();
-    let app = App::new(cli)?;
-    app.run()?;
+    let cmds = Cli::parse();
+    if cmds.new.is_some() {
+        create_new(cmds)?;
+        return Ok(());
+    }
+    let build_file = std::fs::read_to_string("Build.toml").expect("no Build.toml in current directory");
+    let project = Redirect::parse(build_file)?;
+    project.run(&cmds.initial)?;
     Ok(())
 }
