@@ -210,7 +210,6 @@ impl AppRoot {
                 out.push(dep);
             }
         }
-        dbg!(&out);
         Ok(Some(out))
     }
 
