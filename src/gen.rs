@@ -1,8 +1,8 @@
 use crate::cli::{Cli, Lang};
 use anyhow::Result;
 use colored::Colorize;
-use std::io::Write;
 use std::fs;
+use std::io::Write;
 
 pub fn create_new(cli: Cli) -> Result<()> {
     if let Some(name) = cli.new {

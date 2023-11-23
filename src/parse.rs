@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-use std::process::Stdio;
-use std::{fmt::Debug, fs::canonicalize, path::PathBuf};
-
-use crate::cli::Command;
 use anyhow::{Ok, Result};
 use colored::Colorize;
 use serde::Deserialize;
-use std::fmt;
-use std::{fs, process};
+use std::{
+    collections::HashMap, fmt, fmt::Debug, fs, fs::canonicalize, path::PathBuf, process,
+    process::Stdio,
+};
+
+use crate::cli::Command;
 
 #[allow(non_camel_case_types)]
 #[derive(Deserialize, Debug, Default)]
@@ -103,10 +102,10 @@ pub struct AppRoot {
 }
 
 impl AppRoot {
-    pub fn run(&self, command: &Command) -> Result<()> {
+    fn run(&self, command: &Command) -> Result<()> {
         match command {
             Command::build => self.build_project()?,
-            _ => todo!(),
+            _ => todo!("Only supported command is build"),
         }
         Ok(())
     }
@@ -196,7 +195,6 @@ impl AppRoot {
         }
     }
 
-    /* returns a vec with format -I, <include>  */
     fn get_includes(&self) -> Option<Vec<String>> {
         let mut out: Vec<String> = vec![];
         if self.build.includes.is_none() {
@@ -231,7 +229,7 @@ impl AppRoot {
     }
 
     fn has_been_modified(&self, source: &PathBuf, object: &PathBuf) -> Result<bool> {
-        let source_meta = fs::metadata(&source).expect("Joe mama");
+        let source_meta = fs::metadata(&source)?;
         let object_meta = fs::metadata(&object)?;
         Ok(object_meta.modified()? < source_meta.modified()?)
     }
@@ -288,13 +286,10 @@ impl Redirect {
     }
 
     pub fn run(&self, cmd: &Option<Command>) -> Result<()> {
-        let cmd: Command = match cmd {
-            None => Command::run,
-            Some(command) => command.to_owned(),
-        };
+        let cmd = cmd.as_ref().unwrap_or(&Command::run);
         match self {
-            Self::App(app) => app.run(&cmd)?,
-            Self::Lib(lib) => lib.run(&cmd),
+            Self::App(app) => app.run(cmd)?,
+            Self::Lib(lib) => lib.run(cmd),
         }
         Ok(())
     }
@@ -304,5 +299,5 @@ fn dependency_link(name: &String) -> String {
     if name.starts_with("https://") || name.starts_with("git@") {
         return name.clone();
     }
-    return "https://github.com/".to_string() + name;
+    "https://github.com/".to_string() + name
 }

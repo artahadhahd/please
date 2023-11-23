@@ -23,13 +23,15 @@ pub enum Lang {
     #[default]
     c,
     cpp,
+    #[clap(name = "c++")]
+    cxx,
 }
 
 impl Lang {
     pub fn to_extension<'a>(&self) -> &'a str {
         match self {
             Self::c => "c",
-            Self::cpp => "cpp",
+            _ => "cpp",
         }
     }
 }
