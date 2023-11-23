@@ -35,6 +35,7 @@ pub enum CompilationError {
     #[allow(dead_code)]
     Dependency(String),
     Cloning(String),
+    ShellCommand(String),
     Ext,
 }
 
@@ -47,6 +48,7 @@ impl std::fmt::Display for CompilationError {
             Linking(name) => write!(f, "{} {name}", "Failed to link".bold().red()),
             Dependency(dep) => write!(f, "{}: {dep}", "Dependency not found".bold().red()),
             Cloning(dep) => write!(f, "{} '{dep}'", "Failed to clone dependency".red().bold()),
+            ShellCommand(command) => write!(f, "{} '{command}'\nMake sure it's installed on your machine", "Failed to run".red().bold()),
             Ext => write!(f, "An internal error occured. please try again."),
         }
     }
@@ -199,7 +201,11 @@ impl AppRoot {
                     let cmds: Vec<&str> = buf.split(" ").collect();
                     let mut expansion = process::Command::new(cmds[0]);
                     expansion.args(&cmds[1..]);
-                    let command_out = expansion.output()?; // replace with own error
+                    let command_out = expansion.output();
+                    if command_out.is_err() {
+                        return Err(CompilationError::ShellCommand(cmds.join(" ")).into());
+                    }
+                    let command_out = command_out.unwrap();
                     let output = String::from_utf8(command_out.stdout)?;
                     for opt in output.split_ascii_whitespace() {
                         out.push(opt.into());
