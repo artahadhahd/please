@@ -6,7 +6,7 @@ use std::{
     process::Stdio,
 };
 
-use crate::cli::Command;
+use crate::{cli::Command, utils::get_extension};
 
 #[allow(non_camel_case_types)]
 #[derive(Deserialize, Debug, Default)]
@@ -35,6 +35,7 @@ pub enum CompilationError {
     #[allow(dead_code)]
     Dependency(String),
     Cloning(String),
+    Ext,
 }
 
 impl std::error::Error for CompilationError {}
@@ -46,6 +47,7 @@ impl std::fmt::Display for CompilationError {
             Linking(name) => write!(f, "{} {name}", "Failed to link".bold().red()),
             Dependency(dep) => write!(f, "{}: {dep}", "Dependency not found".bold().red()),
             Cloning(dep) => write!(f, "{} '{dep}'", "Failed to clone dependency".red().bold()),
+            Ext => write!(f, "An internal error occured. please try again."),
         }
     }
 }
@@ -104,17 +106,14 @@ fn get_sources<'a>(sources: &Vec<String>) -> Result<Vec<String>> {
             for path in dir {
                 let file = path?;
                 let file = file.path();
-                if let Some(extension) = file.extension() {
-                    if let Some(extension) = extension.to_str() {
-                        match extension {
-                            "c" | "cpp" | "cxx" | "c++" | "cc" | "C" => {
-                                if let Some(f) = file.to_str() {
-                                    out.push(f.to_string())
-                                }
-                            }
-                            _ => (),
+                let extension = get_extension(&file)?;
+                match extension {
+                    "c" | "cpp" | "cxx" | "c++" | "cc" | "C" => {
+                        if let Some(f) = file.to_str() {
+                            out.push(f.to_string())
                         }
                     }
+                    _ => (),
                 }
             }
         }
@@ -152,7 +151,6 @@ impl AppRoot {
         let build_sources = get_sources(&self.build.sources)?;
         if self.build.objects.unwrap_or(false) {
             let objects = self.compilation_stage(&build_sources)?;
-            dbg!(&build_sources);
             self.link_from(&objects)?;
         } else {
             self.link_from(&build_sources)?;
@@ -169,7 +167,7 @@ impl AppRoot {
         for source in sources.iter() {
             compiler.arg(source);
         }
-        let platform_links = self.get_local_links();
+        let platform_links = self.get_local_links()?;
         self.load_remote_dependencies()?;
         if platform_links.is_some() {
             compiler.args(&platform_links.unwrap());
@@ -182,19 +180,38 @@ impl AppRoot {
         Ok(())
     }
 
-    fn get_local_links(&self) -> Option<Vec<String>> {
+    fn get_local_links(&self) -> Result<Option<Vec<String>>> {
         if self.build.dependencies.is_none() {
-            return None;
+            return Ok(None);
         }
         let deps = self.build.dependencies.clone().unwrap();
-        deps.local.clone().and_then(|deps| {
-            let mut out: Vec<String> = vec![];
+        let mut out: Vec<String> = vec![];
+        // deps.local.clone().and_then(|deps| {
+        if let Some(deps) = deps.local.clone() {
             for dep in deps {
+                if dep.starts_with("`") && dep.ends_with("`") {
+                    let mut buf = String::from("");
+                    for c in dep.chars() {
+                        if c != '`' {
+                            buf += &c.to_string();
+                        }
+                    }
+                    let cmds: Vec<&str> = buf.split(" ").collect();
+                    let mut expansion = process::Command::new(cmds[0]);
+                    expansion.args(&cmds[1..]);
+                    let command_out = expansion.output()?; // replace with own error
+                    let output = String::from_utf8(command_out.stdout)?;
+                    for opt in output.split_ascii_whitespace() {
+                        out.push(opt.into());
+                    }
+                    continue;
+                }
                 out.push("-l".into());
                 out.push(dep);
             }
-            Some(out)
-        })
+        }
+        dbg!(&out);
+        Ok(Some(out))
     }
 
     fn load_remote_dependencies(&self) -> Result<()> {
@@ -286,6 +303,7 @@ impl AppRoot {
                 compiler.args(&includes.unwrap());
             }
             if needs_to_be_compiled {
+                println!("    {} {}", "Compiling".green().bold(), file);
                 let status = compiler.status()?;
                 let status = status.success();
                 if !status {
@@ -319,7 +337,7 @@ impl Redirect {
     }
 
     pub fn run(&self, cmd: &Option<Command>) -> Result<()> {
-        let cmd = cmd.as_ref().unwrap_or(&Command::run);
+        let cmd = cmd.as_ref().unwrap_or(&Command::build);
         match self {
             Self::App(app) => app.run(cmd)?,
             Self::Lib(lib) => lib.run(cmd),
