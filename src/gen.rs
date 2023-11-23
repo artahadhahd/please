@@ -1,11 +1,17 @@
 use crate::cli::{Cli, Lang};
 use anyhow::Result;
+use colored::Colorize;
 use std::io::Write;
 
 pub fn create_new(cli: Cli) -> Result<()> {
     if let Some(name) = cli.new {
         std::fs::create_dir(&name)?;
         let project_root = std::fs::canonicalize(&name)?;
+        println!(
+            "    {} project '{name}' ({:?})",
+            "Creating".green().bold(),
+            project_root
+        );
         let source_directory = project_root.join("src");
         std::fs::create_dir(&source_directory)?;
         let extension = cli.language.unwrap_or(Lang::c).to_extension();
@@ -26,9 +32,8 @@ version = "0.1"
 type = "app"
 
 [build]
-# compiler = MANDATORY
+#compiler = 
 sources = ["src/{name}.{extension}"]
-includes = []
 "#
             )
             .as_bytes(),

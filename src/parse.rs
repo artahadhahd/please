@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::process::Stdio;
 use std::{fmt::Debug, fs::canonicalize, path::PathBuf};
 
 use crate::cli::Command;
@@ -34,6 +35,7 @@ pub enum CompilationError {
     Linking(String),
     #[allow(dead_code)]
     Dependency(String),
+    Cloning(String),
 }
 
 impl std::error::Error for CompilationError {}
@@ -44,6 +46,7 @@ impl std::fmt::Display for CompilationError {
             Compiling(name) => write!(f, "{} '{name}'", "Failed to compile".bold().red()),
             Linking(name) => write!(f, "{} {name}", "Failed to link".bold().red()),
             Dependency(dep) => write!(f, "{}: {dep}", "Dependency not found".bold().red()),
+            Cloning(dep) => write!(f, "{} '{dep}'", "Failed to clone dependency".red().bold()),
         }
     }
 }
@@ -71,6 +74,8 @@ pub struct Remote(HashMap<String, String>);
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Dependencies {
+    pub vcs: Option<String>,
+    pub vcs_flags: Option<Vec<String>>,
     pub local: Option<Vec<String>>,
     pub remote: Option<Remote>,
 }
@@ -133,6 +138,7 @@ impl AppRoot {
             compiler.arg(source);
         }
         let platform_links = self.get_local_links();
+        self.load_remote_dependencies()?;
         if platform_links.is_some() {
             compiler.args(&platform_links.unwrap());
         }
@@ -157,6 +163,37 @@ impl AppRoot {
             }
             Some(out)
         })
+    }
+
+    fn load_remote_dependencies(&self) -> Result<()> {
+        if let Some(dep_root) = &self.build.dependencies {
+            if let Some(remote) = &dep_root.remote {
+                for (k, v) in remote.to_owned().0.into_iter() {
+                    let repository = dependency_link(&v);
+                    let mut git = process::Command::new(&self.get_vcs());
+                    git.args(["clone", &repository, &k]);
+                    if let Some(vcs_flags) = &dep_root.vcs_flags {
+                        git.args(vcs_flags);
+                    }
+                    // suppress git output
+                    git.stderr(Stdio::null());
+                    let status = git.status()?;
+                    if !status.success() {
+                        return Err(CompilationError::Cloning(repository).into());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn get_vcs(&self) -> String {
+        if let Some(dependencies) = &self.build.dependencies {
+            let vcs = dependencies.vcs.clone();
+            vcs.unwrap_or("git".into())
+        } else {
+            String::from("git")
+        }
     }
 
     /* returns a vec with format -I, <include>  */
@@ -206,10 +243,7 @@ impl AppRoot {
             let mut output = canonicalize(PathBuf::from(file))?;
             let input = output.clone();
             output.set_extension("o");
-            let needs_to_be_compiled = self.has_been_modified(
-                &input,
-                &output,
-            ).unwrap_or(true);
+            let needs_to_be_compiled = self.has_been_modified(&input, &output).unwrap_or(true);
             out.push(output.to_str().unwrap().to_string());
             compiler.arg("-c").arg(file).arg("-o").arg(output);
             let warnings = self.get_warnings();
@@ -264,4 +298,11 @@ impl Redirect {
         }
         Ok(())
     }
+}
+
+fn dependency_link(name: &String) -> String {
+    if name.starts_with("https://") || name.starts_with("git@") {
+        return name.clone();
+    }
+    return "https://github.com/".to_string() + name;
 }
