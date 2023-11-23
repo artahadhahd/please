@@ -199,16 +199,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f665ee40bc4a3c5590afb1e9677db74a508659dfd71e126420da8274909a0167"
 
 [[package]]
-name = "proc-macro2"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da"
-dependencies = [
- "unicode-ident",
-]
-
-[[package]]
-name = "pwease"
+name = "please"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -216,6 +207,15 @@ dependencies = [
  "colored",
  "serde",
  "toml",
+]
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da"
+dependencies = [
+ "unicode-ident",
 ]
 
 [[package]]
