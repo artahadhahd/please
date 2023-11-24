@@ -2,6 +2,7 @@ mod cli;
 mod gen;
 mod parse;
 mod utils;
+mod errors;
 
 use anyhow::Result;
 use clap::Parser;
